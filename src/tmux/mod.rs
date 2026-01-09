@@ -84,3 +84,41 @@ pub fn get_current_session_name() -> Option<String> {
 pub fn is_tmux_available() -> bool {
     Command::new("tmux").arg("-V").output().is_ok()
 }
+
+pub fn is_claude_available() -> bool {
+    Command::new("claude").arg("--version").output().is_ok()
+}
+
+pub fn is_opencode_available() -> bool {
+    Command::new("opencode").arg("--version").output().is_ok()
+}
+
+#[derive(Debug, Clone)]
+pub struct AvailableTools {
+    pub claude: bool,
+    pub opencode: bool,
+}
+
+impl AvailableTools {
+    pub fn detect() -> Self {
+        Self {
+            claude: is_claude_available(),
+            opencode: is_opencode_available(),
+        }
+    }
+
+    pub fn any_available(&self) -> bool {
+        self.claude || self.opencode
+    }
+
+    pub fn available_list(&self) -> Vec<&'static str> {
+        let mut tools = Vec::new();
+        if self.claude {
+            tools.push("claude");
+        }
+        if self.opencode {
+            tools.push("opencode");
+        }
+        tools
+    }
+}

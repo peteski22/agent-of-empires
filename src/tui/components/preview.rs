@@ -79,9 +79,25 @@ impl Preview {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        // Try to capture output from tmux
+        if let Some(error) = &instance.last_error {
+            let error_lines: Vec<Line> = vec![
+                Line::from(Span::styled(
+                    "Error:",
+                    Style::default().fg(theme.error).bold(),
+                )),
+                Line::from(""),
+                Line::from(Span::styled(
+                    error.as_str(),
+                    Style::default().fg(theme.error),
+                )),
+            ];
+            let paragraph = Paragraph::new(error_lines).wrap(Wrap { trim: false });
+            frame.render_widget(paragraph, inner);
+            return;
+        }
+
         let output = instance
-            .capture_output(inner.height as usize)
+            .capture_output_with_size(inner.height as usize, inner.width, inner.height)
             .unwrap_or_default();
 
         if output.is_empty() {
@@ -95,9 +111,19 @@ impl Preview {
                 .map(|line| Line::from(Span::raw(line)))
                 .collect();
 
+            let line_count = output_lines.len();
+            let visible_height = inner.height as usize;
+
+            // Scroll to show the bottom of the content
+            let scroll_offset = if line_count > visible_height {
+                (line_count - visible_height) as u16
+            } else {
+                0
+            };
+
             let paragraph = Paragraph::new(output_lines)
                 .style(Style::default().fg(theme.text))
-                .wrap(Wrap { trim: false });
+                .scroll((scroll_offset, 0));
 
             frame.render_widget(paragraph, inner);
         }

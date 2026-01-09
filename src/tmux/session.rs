@@ -143,8 +143,70 @@ impl Session {
     }
 
     pub fn capture_pane(&self, lines: usize) -> Result<String> {
+        self.capture_pane_with_size(lines, None, None)
+    }
+
+    fn get_window_size(&self) -> Option<(u16, u16)> {
+        let output = Command::new("tmux")
+            .args([
+                "display",
+                "-p",
+                "-t",
+                &self.name,
+                "#{window_width} #{window_height}",
+            ])
+            .output()
+            .ok()?;
+
+        if !output.status.success() {
+            return None;
+        }
+
+        let size_str = String::from_utf8_lossy(&output.stdout);
+        let parts: Vec<&str> = size_str.trim().split_whitespace().collect();
+        if parts.len() == 2 {
+            let width = parts[0].parse().ok()?;
+            let height = parts[1].parse().ok()?;
+            Some((width, height))
+        } else {
+            None
+        }
+    }
+
+    fn resize_window(&self, width: u16, height: u16) {
+        let _ = Command::new("tmux")
+            .args([
+                "resize-window",
+                "-t",
+                &self.name,
+                "-x",
+                &width.to_string(),
+                "-y",
+                &height.to_string(),
+            ])
+            .output();
+    }
+
+    pub fn capture_pane_with_size(
+        &self,
+        lines: usize,
+        width: Option<u16>,
+        height: Option<u16>,
+    ) -> Result<String> {
         if !self.exists() {
             return Ok(String::new());
+        }
+
+        // Save current window size before resizing
+        let original_size = if width.is_some() && height.is_some() {
+            self.get_window_size()
+        } else {
+            None
+        };
+
+        // Resize the window to match the preview dimensions if provided
+        if let (Some(w), Some(h)) = (width, height) {
+            self.resize_window(w, h);
         }
 
         let output = Command::new("tmux")
@@ -157,6 +219,11 @@ impl Session {
                 &format!("-{}", lines),
             ])
             .output()?;
+
+        // Restore original window size
+        if let Some((orig_w, orig_h)) = original_size {
+            self.resize_window(orig_w, orig_h);
+        }
 
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).to_string())

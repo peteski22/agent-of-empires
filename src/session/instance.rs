@@ -48,6 +48,8 @@ pub struct Instance {
     pub last_error_check: Option<std::time::Instant>,
     #[serde(skip)]
     pub last_start_time: Option<std::time::Instant>,
+    #[serde(skip)]
+    pub last_error: Option<String>,
 }
 
 impl Instance {
@@ -67,6 +69,7 @@ impl Instance {
             claude_detected_at: None,
             last_error_check: None,
             last_start_time: None,
+            last_error: None,
         }
     }
 
@@ -190,9 +193,14 @@ impl Instance {
         Ok(forked)
     }
 
-    pub fn capture_output(&self, lines: usize) -> Result<String> {
+    pub fn capture_output_with_size(
+        &self,
+        lines: usize,
+        width: u16,
+        height: u16,
+    ) -> Result<String> {
         let session = self.tmux_session()?;
-        session.capture_pane(lines)
+        session.capture_pane_with_size(lines, Some(width), Some(height))
     }
 }
 

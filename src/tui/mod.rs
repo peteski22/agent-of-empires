@@ -29,6 +29,19 @@ pub async fn run(profile: &str) -> Result<()> {
         std::process::exit(1);
     }
 
+    // Check for coding tools
+    let available_tools = crate::tmux::AvailableTools::detect();
+    if !available_tools.any_available() {
+        eprintln!("Error: No coding tools found in PATH");
+        eprintln!();
+        eprintln!("Agent of Empires requires at least one of:");
+        eprintln!("  claude    - Anthropic's Claude CLI");
+        eprintln!("  opencode  - OpenCode CLI");
+        eprintln!();
+        eprintln!("Install one of these tools and ensure it's in your PATH.");
+        std::process::exit(1);
+    }
+
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -37,7 +50,7 @@ pub async fn run(profile: &str) -> Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     // Create app and run
-    let mut app = App::new(profile)?;
+    let mut app = App::new(profile, available_tools)?;
     let result = app.run(&mut terminal).await;
 
     // Restore terminal

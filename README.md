@@ -12,6 +12,7 @@ This project was inspired by [agent-deck](https://github.com/asheshgoplani/agent
 
 ```bash
 brew install njbrake/aoe/aoe
+# update via brew update && brew upgrade aoe
 ```
 
 Or clone and build:
@@ -212,6 +213,23 @@ Key dependencies:
 - `tokio` - Async runtime
 - `notify` - File system watching
 - `reqwest` - HTTP client for updates
+
+## FAQ
+
+### Using aoe with mobile SSH clients (Termius, Blink, etc.)
+
+If you're connecting via SSH from a mobile app like Termius, you may encounter issues when attaching to sessions. The recommended approach is to run `aoe` inside a tmux session:
+
+```bash
+# Start a tmux session first
+tmux new-session -s main
+
+# Then run aoe inside it
+aoe
+```
+
+When you attach to an agent session, tmux will switch to that session. To navigate back to `aoe` use the tmux command `Ctrl+b L` to switch to last session (toggle back to aoe)
+
 
 ## License
 

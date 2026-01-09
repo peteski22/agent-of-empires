@@ -5,9 +5,8 @@ use ratatui::prelude::*;
 use ratatui::widgets::*;
 
 use super::DialogResult;
+use crate::tmux::AvailableTools;
 use crate::tui::styles::Theme;
-
-const TOOL_OPTIONS: [&str; 2] = ["claude", "opencode"];
 
 pub struct NewSessionData {
     pub title: String,
@@ -22,13 +21,16 @@ pub struct NewSessionDialog {
     group: String,
     tool_index: usize,
     focused_field: usize,
+    available_tools: Vec<&'static str>,
 }
 
 impl NewSessionDialog {
-    pub fn new() -> Self {
+    pub fn new(tools: AvailableTools) -> Self {
         let current_dir = std::env::current_dir()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default();
+
+        let available_tools = tools.available_list();
 
         Self {
             title: String::new(),
@@ -36,10 +38,14 @@ impl NewSessionDialog {
             group: String::new(),
             tool_index: 0,
             focused_field: 0,
+            available_tools,
         }
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) -> DialogResult<NewSessionData> {
+        let has_tool_selection = self.available_tools.len() > 1;
+        let max_field = if has_tool_selection { 4 } else { 3 };
+
         match key.code {
             KeyCode::Esc => DialogResult::Cancel,
             KeyCode::Enter => {
@@ -53,37 +59,37 @@ impl NewSessionDialog {
                     title: self.title.clone(),
                     path: self.path.clone(),
                     group: self.group.clone(),
-                    tool: TOOL_OPTIONS[self.tool_index].to_string(),
+                    tool: self.available_tools[self.tool_index].to_string(),
                 })
             }
             KeyCode::Tab => {
-                self.focused_field = (self.focused_field + 1) % 4;
+                self.focused_field = (self.focused_field + 1) % max_field;
                 DialogResult::Continue
             }
             KeyCode::BackTab => {
                 self.focused_field = if self.focused_field == 0 {
-                    3
+                    max_field - 1
                 } else {
                     self.focused_field - 1
                 };
                 DialogResult::Continue
             }
-            KeyCode::Left | KeyCode::Right if self.focused_field == 3 => {
-                self.tool_index = 1 - self.tool_index;
+            KeyCode::Left | KeyCode::Right if self.focused_field == 3 && has_tool_selection => {
+                self.tool_index = (self.tool_index + 1) % self.available_tools.len();
                 DialogResult::Continue
             }
-            KeyCode::Char(' ') if self.focused_field == 3 => {
-                self.tool_index = 1 - self.tool_index;
+            KeyCode::Char(' ') if self.focused_field == 3 && has_tool_selection => {
+                self.tool_index = (self.tool_index + 1) % self.available_tools.len();
                 DialogResult::Continue
             }
             KeyCode::Backspace => {
-                if self.focused_field != 3 {
+                if self.focused_field != 3 || !has_tool_selection {
                     self.current_field_mut().pop();
                 }
                 DialogResult::Continue
             }
             KeyCode::Char(c) => {
-                if self.focused_field != 3 {
+                if self.focused_field != 3 || !has_tool_selection {
                     self.current_field_mut().push(c);
                 }
                 DialogResult::Continue
@@ -102,6 +108,7 @@ impl NewSessionDialog {
     }
 
     pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let has_tool_selection = self.available_tools.len() > 1;
         let dialog_width = 60;
         let dialog_height = 14;
         let x = area.x + (area.width.saturating_sub(dialog_width)) / 2;
@@ -169,52 +176,61 @@ impl NewSessionDialog {
         }
 
         let is_tool_focused = self.focused_field == 3;
-        let tool_style = if is_tool_focused {
+        let tool_style = if is_tool_focused && has_tool_selection {
             Style::default().fg(theme.accent)
         } else {
             Style::default().fg(theme.text)
         };
 
-        let claude_style = if self.tool_index == 0 {
-            Style::default().fg(theme.accent).bold()
-        } else {
-            Style::default().fg(theme.dimmed)
-        };
-        let opencode_style = if self.tool_index == 1 {
-            Style::default().fg(theme.accent).bold()
-        } else {
-            Style::default().fg(theme.dimmed)
-        };
+        if has_tool_selection {
+            let mut tool_spans = vec![Span::styled("Tool:  ", tool_style)];
 
-        let tool_line = Line::from(vec![
-            Span::styled("Tool:  ", tool_style),
-            Span::styled(if self.tool_index == 0 { "● " } else { "○ " }, claude_style),
-            Span::styled("claude", claude_style),
-            Span::raw("   "),
-            Span::styled(
-                if self.tool_index == 1 { "● " } else { "○ " },
-                opencode_style,
-            ),
-            Span::styled("opencode", opencode_style),
-        ]);
-        frame.render_widget(Paragraph::new(tool_line), chunks[3]);
+            for (idx, tool_name) in self.available_tools.iter().enumerate() {
+                let is_selected = idx == self.tool_index;
+                let style = if is_selected {
+                    Style::default().fg(theme.accent).bold()
+                } else {
+                    Style::default().fg(theme.dimmed)
+                };
 
-        let hint = Line::from(vec![
-            Span::styled("Tab", Style::default().fg(theme.hint)),
-            Span::raw(" next  "),
-            Span::styled("←/→/Space", Style::default().fg(theme.hint)),
-            Span::raw(" toggle tool  "),
-            Span::styled("Enter", Style::default().fg(theme.hint)),
-            Span::raw(" create  "),
-            Span::styled("Esc", Style::default().fg(theme.hint)),
-            Span::raw(" cancel"),
-        ]);
+                if idx > 0 {
+                    tool_spans.push(Span::raw("   "));
+                }
+                tool_spans.push(Span::styled(if is_selected { "● " } else { "○ " }, style));
+                tool_spans.push(Span::styled(*tool_name, style));
+            }
+
+            let tool_line = Line::from(tool_spans);
+            frame.render_widget(Paragraph::new(tool_line), chunks[3]);
+        } else {
+            let tool_line = Line::from(vec![
+                Span::styled("Tool:  ", tool_style),
+                Span::styled(self.available_tools[0], Style::default().fg(theme.accent)),
+            ]);
+            frame.render_widget(Paragraph::new(tool_line), chunks[3]);
+        }
+
+        let hint = if has_tool_selection {
+            Line::from(vec![
+                Span::styled("Tab", Style::default().fg(theme.hint)),
+                Span::raw(" next  "),
+                Span::styled("←/→/Space", Style::default().fg(theme.hint)),
+                Span::raw(" toggle tool  "),
+                Span::styled("Enter", Style::default().fg(theme.hint)),
+                Span::raw(" create  "),
+                Span::styled("Esc", Style::default().fg(theme.hint)),
+                Span::raw(" cancel"),
+            ])
+        } else {
+            Line::from(vec![
+                Span::styled("Tab", Style::default().fg(theme.hint)),
+                Span::raw(" next  "),
+                Span::styled("Enter", Style::default().fg(theme.hint)),
+                Span::raw(" create  "),
+                Span::styled("Esc", Style::default().fg(theme.hint)),
+                Span::raw(" cancel"),
+            ])
+        };
         frame.render_widget(Paragraph::new(hint), chunks[4]);
-    }
-}
-
-impl Default for NewSessionDialog {
-    fn default() -> Self {
-        Self::new()
     }
 }

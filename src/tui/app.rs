@@ -9,6 +9,7 @@ use std::time::Duration;
 use super::home::HomeView;
 use super::styles::Theme;
 use crate::session::Storage;
+use crate::tmux::AvailableTools;
 
 pub struct App {
     home: HomeView,
@@ -18,9 +19,9 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(profile: &str) -> Result<Self> {
+    pub fn new(profile: &str, available_tools: AvailableTools) -> Result<Self> {
         let storage = Storage::new(profile)?;
-        let home = HomeView::new(storage)?;
+        let home = HomeView::new(storage, available_tools)?;
         let theme = Theme::default();
 
         Ok(Self {
@@ -132,9 +133,13 @@ impl App {
         let tmux_session = instance.tmux_session()?;
 
         if !tmux_session.exists() {
-            // Start the session first
             let mut inst = instance.clone();
-            inst.start()?;
+            if let Err(e) = inst.start() {
+                self.home
+                    .set_instance_error(session_id, Some(e.to_string()));
+                return Ok(());
+            }
+            self.home.set_instance_error(session_id, None);
         }
 
         // Leave TUI mode completely

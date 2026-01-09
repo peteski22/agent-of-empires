@@ -10,6 +10,7 @@ use super::components::{HelpOverlay, Preview};
 use super::dialogs::{ConfirmDialog, NewSessionDialog};
 use super::styles::Theme;
 use crate::session::{flatten_tree, Group, GroupTree, Instance, Item, Status, Storage};
+use crate::tmux::AvailableTools;
 
 pub struct HomeView {
     storage: Storage,
@@ -33,10 +34,13 @@ pub struct HomeView {
     search_active: bool,
     search_query: String,
     filtered_items: Option<Vec<usize>>,
+
+    // Tool availability
+    available_tools: AvailableTools,
 }
 
 impl HomeView {
-    pub fn new(storage: Storage) -> anyhow::Result<Self> {
+    pub fn new(storage: Storage, available_tools: AvailableTools) -> anyhow::Result<Self> {
         let (instances, groups) = storage.load_with_groups()?;
         let instance_map: HashMap<String, Instance> = instances
             .iter()
@@ -61,6 +65,7 @@ impl HomeView {
             search_active: false,
             search_query: String::new(),
             filtered_items: None,
+            available_tools,
         };
 
         view.update_selected();
@@ -106,6 +111,12 @@ impl HomeView {
 
     pub fn get_instance(&self, id: &str) -> Option<&Instance> {
         self.instance_map.get(id)
+    }
+
+    pub fn set_instance_error(&mut self, id: &str, error: Option<String>) {
+        if let Some(inst) = self.instance_map.get_mut(id) {
+            inst.last_error = error;
+        }
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) -> Option<Action> {
@@ -199,7 +210,7 @@ impl HomeView {
                 self.search_query.clear();
             }
             KeyCode::Char('n') => {
-                self.new_dialog = Some(NewSessionDialog::new());
+                self.new_dialog = Some(NewSessionDialog::new(self.available_tools.clone()));
             }
             KeyCode::Char('d') => {
                 if self.selected_session.is_some() {
