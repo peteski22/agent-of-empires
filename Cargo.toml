@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Agent of Empires Contributors"]
 description = "Terminal session manager for AI coding agents"
 license = "MIT"
-repository = "https://github.com/nbrake/agent-of-empires"
+repository = "https://github.com/njbrake/agent-of-empires"
 keywords = ["tmux", "tui", "ai", "claude", "terminal"]
 categories = ["command-line-utilities", "development-tools"]
 

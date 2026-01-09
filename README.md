@@ -7,17 +7,17 @@ A terminal session manager for AI coding agents, written in Rust.
 ### Homebrew (macOS and Linux)
 
 ```bash
-brew tap nbrake/aoe
+brew tap njbrake/aoe
 brew install aoe
 ```
 
 ### From GitHub Releases
 
-Download the latest release for your platform from the [releases page](https://github.com/nbrake/agent-of-empires/releases).
+Download the latest release for your platform from the [releases page](https://github.com/njbrake/agent-of-empires/releases).
 
 ```bash
 # Example for macOS ARM64
-curl -LO https://github.com/nbrake/agent-of-empires/releases/latest/download/aoe-darwin-arm64.tar.gz
+curl -LO https://github.com/njbrake/agent-of-empires/releases/latest/download/aoe-darwin-arm64.tar.gz
 tar -xzf aoe-darwin-arm64.tar.gz
 sudo mv aoe-darwin-arm64 /usr/local/bin/aoe
 ```
@@ -25,13 +25,13 @@ sudo mv aoe-darwin-arm64 /usr/local/bin/aoe
 ### From Source
 
 ```bash
-cargo install --git https://github.com/nbrake/agent-of-empires
+cargo install --git https://github.com/njbrake/agent-of-empires
 ```
 
 Or clone and build:
 
 ```bash
-git clone https://github.com/nbrake/agent-of-empires
+git clone https://github.com/njbrake/agent-of-empires
 cd agent-of-empires
 cargo build --release
 # Binary at target/release/aoe
