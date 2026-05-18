@@ -25,7 +25,7 @@ use axum::Router;
 use rust_embed::Embed;
 use serde::Serialize;
 use tokio::sync::{broadcast, RwLock};
-use tracing::info;
+use tracing::{info, Instrument};
 
 use self::push::{PushState, StatusChange, STATUS_CHANNEL_CAPACITY};
 
@@ -343,7 +343,7 @@ fn raise_fd_limit() {
             let target = TARGET.min(hard).max(soft);
             if target > soft {
                 if let Err(e) = setrlimit(Resource::RLIMIT_NOFILE, target, hard) {
-                    tracing::warn!("Failed to raise RLIMIT_NOFILE to {}: {}", target, e);
+                    tracing::warn!(target: "http.middleware", "Failed to raise RLIMIT_NOFILE to {}: {}", target, e);
                 } else {
                     info!(
                         "Raised RLIMIT_NOFILE soft limit from {} to {}",
@@ -352,7 +352,7 @@ fn raise_fd_limit() {
                 }
             }
         }
-        Err(e) => tracing::warn!("Failed to read RLIMIT_NOFILE: {}", e),
+        Err(e) => tracing::warn!(target: "http.middleware", "Failed to read RLIMIT_NOFILE: {}", e),
     }
 }
 
@@ -443,7 +443,7 @@ pub async fn start_server(config: ServerConfig<'_>) -> anyhow::Result<()> {
             Ok(dir) => match PushState::init(&dir) {
                 Ok(s) => Some(Arc::new(s)),
                 Err(e) => {
-                    tracing::warn!(
+                    tracing::warn!(target: "http.middleware",
                         "Push notifications disabled: failed to init VAPID/state: {}",
                         e
                     );
@@ -451,7 +451,7 @@ pub async fn start_server(config: ServerConfig<'_>) -> anyhow::Result<()> {
                 }
             },
             Err(e) => {
-                tracing::warn!("Push notifications disabled: app_dir unavailable: {}", e);
+                tracing::warn!(target: "http.middleware", "Push notifications disabled: app_dir unavailable: {}", e);
                 None
             }
         }
@@ -559,7 +559,7 @@ pub async fn start_server(config: ServerConfig<'_>) -> anyhow::Result<()> {
     // The probe itself also logs details about each underlying call.
     let tailscale_ok = if remote && !no_tailscale {
         let available = tunnel::tailscale_available().await;
-        tracing::debug!(
+        tracing::debug!(target: "http.middleware",
             no_tailscale,
             tailscale_available = available,
             "tunnel: choosing transport"
@@ -567,7 +567,7 @@ pub async fn start_server(config: ServerConfig<'_>) -> anyhow::Result<()> {
         available
     } else {
         if remote && no_tailscale {
-            tracing::debug!("tunnel: --no-tailscale set, skipping Tailscale auto-detection");
+            tracing::debug!(target: "http.middleware", "tunnel: --no-tailscale set, skipping Tailscale auto-detection");
         }
         false
     };
@@ -647,7 +647,7 @@ pub async fn start_server(config: ServerConfig<'_>) -> anyhow::Result<()> {
             // "tailscale" for Tailscale Funnel, "local" for local-only.
             let mode = format!("{}\n", handle.mode_label());
             if let Err(e) = tokio::fs::write(app_dir.join("serve.mode"), mode).await {
-                tracing::debug!("Failed to write serve.mode: {e}");
+                tracing::debug!(target: "http.middleware", "Failed to write serve.mode: {e}");
             }
         }
 
@@ -714,7 +714,7 @@ pub async fn start_server(config: ServerConfig<'_>) -> anyhow::Result<()> {
             }
             write_secret_file(&app_dir.join("serve.url"), &contents).await;
             if let Err(e) = tokio::fs::write(app_dir.join("serve.mode"), "local\n").await {
-                tracing::debug!("Failed to write serve.mode: {e}");
+                tracing::debug!(target: "http.middleware", "Failed to write serve.mode: {e}");
             }
         }
 
@@ -812,11 +812,13 @@ pub async fn start_server(config: ServerConfig<'_>) -> anyhow::Result<()> {
                     }
                     match push.store.retain_owners(&valid_hashes).await {
                         Ok(0) => {}
-                        Ok(n) => tracing::info!(
+                        Ok(n) => tracing::info!(target: "http.middleware",
                             removed = n,
                             "push: dropped subscriptions whose owner-hash is no longer valid after rotation"
                         ),
-                        Err(e) => tracing::warn!(error = %e, "push: retain_owners failed"),
+                        Err(e) => {
+                            tracing::warn!(target: "http.middleware", error = %e, "push: retain_owners failed")
+                        }
                     }
                 }
 
@@ -853,20 +855,20 @@ pub async fn start_server(config: ServerConfig<'_>) -> anyhow::Result<()> {
             let mut sighup = signal(SignalKind::hangup()).ok();
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
-                    info!("Received SIGINT, shutting down...");
+                    tracing::info!(target: "serve.shutdown", signal = "SIGINT", "received signal, shutting down");
                 }
                 _ = async { match sigterm { Some(ref mut s) => { s.recv().await; } None => std::future::pending().await } } => {
-                    info!("Received SIGTERM, shutting down...");
+                    tracing::info!(target: "serve.shutdown", signal = "SIGTERM", "received signal, shutting down");
                 }
                 _ = async { match sighup { Some(ref mut s) => { s.recv().await; } None => std::future::pending().await } } => {
-                    info!("Received SIGHUP, shutting down...");
+                    tracing::info!(target: "serve.shutdown", signal = "SIGHUP", "received signal, shutting down");
                 }
             }
         }
         #[cfg(not(unix))]
         {
             let _ = tokio::signal::ctrl_c().await;
-            info!("Shutting down...");
+            tracing::info!(target: "serve.shutdown", "received ctrl-c, shutting down");
         }
     };
 
@@ -1058,8 +1060,58 @@ fn build_router(state: Arc<AppState>) -> Router {
             auth::auth_middleware,
         ))
         .layer(axum::middleware::from_fn(security_headers))
+        .layer(axum::middleware::from_fn(http_request_span))
         .layer(axum::extract::DefaultBodyLimit::max(1024 * 1024))
         .with_state(state)
+}
+
+/// Middleware that wraps every request in an `http.request` span with a
+/// generated or echoed `X-Request-Id`, then emits one completion event at
+/// the level matching the response status. Logs fired inside the request
+/// (auth middleware, route handlers, downstream `tracing` events) inherit
+/// the span fields, so a single grep on `request_id` reconstructs the call.
+///
+/// Successful completions (2xx/3xx) emit at `debug`, not `info`: the web
+/// UI polls `/api/sessions` every ~2s, so an info-level success log here
+/// would flood `debug.log` at the default `info` filter. Users who want
+/// to see every request can dial `http.request=debug` from settings;
+/// 4xx (`warn`) and 5xx (`error`) stay visible at the default level.
+async fn http_request_span(
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let rid = request
+        .headers()
+        .get("x-request-id")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let method = request.method().clone();
+    let path = request.uri().path().to_string();
+    let span = tracing::debug_span!(
+        target: "http.request",
+        "http_request",
+        request_id = %rid,
+        method = %method,
+        path = %path,
+    );
+    let start = std::time::Instant::now();
+    let mut response = next.run(request).instrument(span.clone()).await;
+    let latency_ms = start.elapsed().as_millis() as u64;
+    let status = response.status().as_u16();
+    span.in_scope(|| {
+        if status >= 500 {
+            tracing::error!(target: "http.request", status, latency_ms, "completed");
+        } else if status >= 400 {
+            tracing::warn!(target: "http.request", status, latency_ms, "completed");
+        } else {
+            tracing::debug!(target: "http.request", status, latency_ms, "completed");
+        }
+    });
+    if let Ok(value) = rid.parse() {
+        response.headers_mut().insert("x-request-id", value);
+    }
+    response
 }
 
 /// Content-Security-Policy for the dashboard.
@@ -1140,20 +1192,20 @@ async fn serve_public_file(uri: axum::http::Uri) -> impl axum::response::IntoRes
 /// Failures are logged but never propagate; the server keeps running.
 fn maybe_open_browser(url: &str) {
     if std::env::var_os("SSH_CONNECTION").is_some() || std::env::var_os("SSH_TTY").is_some() {
-        tracing::info!("--open ignored: running over SSH");
+        tracing::info!(target: "http.middleware", "--open ignored: running over SSH");
         return;
     }
 
     #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd"))]
     {
         if std::env::var_os("DISPLAY").is_none() && std::env::var_os("WAYLAND_DISPLAY").is_none() {
-            tracing::info!("--open ignored: no DISPLAY or WAYLAND_DISPLAY set");
+            tracing::info!(target: "http.middleware", "--open ignored: no DISPLAY or WAYLAND_DISPLAY set");
             return;
         }
     }
 
     if let Err(e) = webbrowser::open(url) {
-        tracing::warn!("--open: failed to launch browser: {e}");
+        tracing::warn!(target: "http.middleware", "--open: failed to launch browser: {e}");
     }
 }
 

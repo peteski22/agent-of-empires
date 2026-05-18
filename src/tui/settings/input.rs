@@ -858,7 +858,8 @@ impl SettingsView {
             | FieldKey::LoggingFilePath
             | FieldKey::LoggingRotation
             | FieldKey::LoggingMaxSizeMib
-            | FieldKey::LoggingKeepCount => {}
+            | FieldKey::LoggingKeepCount
+            | FieldKey::LoggingShowSpans => {}
             FieldKey::HostEnvironment => {
                 config.environment = None;
             }

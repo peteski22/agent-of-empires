@@ -412,9 +412,9 @@ impl HomeView {
             view.remove_instance(id);
         }
         if !orphan_ids.is_empty() {
-            tracing::info!("Cleaned up {} orphaned creating sessions", orphan_ids.len());
+            tracing::info!(target: "tui.home", "Cleaned up {} orphaned creating sessions", orphan_ids.len());
             if let Err(e) = view.save() {
-                tracing::warn!("Failed to save view state: {e}");
+                tracing::warn!(target: "tui.home", "Failed to save view state: {e}");
             }
         }
 
@@ -453,7 +453,7 @@ impl HomeView {
                     .map(|(s, k, v)| (s.as_str(), k.as_str(), v.as_str()))
                     .collect();
                 if let Err(e) = crate::tmux::env::set_hidden_env_batch(&batch_refs) {
-                    tracing::warn!("Batch env sync failed: {}", e);
+                    tracing::warn!(target: "tui.home", "Batch env sync failed: {}", e);
                 }
             }
             if !unset_batch.is_empty() {
@@ -462,7 +462,7 @@ impl HomeView {
                     .map(|(s, k)| (s.as_str(), k.as_str()))
                     .collect();
                 if let Err(e) = crate::tmux::env::remove_hidden_env_batch(&batch_refs) {
-                    tracing::warn!("Batch env unset failed: {}", e);
+                    tracing::warn!(target: "tui.home", "Batch env unset failed: {}", e);
                 }
             }
         }
@@ -679,10 +679,10 @@ impl HomeView {
                 self.rebuild_group_trees();
 
                 if let Err(e) = self.save() {
-                    tracing::error!("Failed to save after deletion: {}", e);
+                    tracing::error!(target: "tui.home", "Failed to save after deletion: {}", e);
                 }
                 if let Err(e) = self.reload() {
-                    tracing::warn!("Failed to reload session state: {e}");
+                    tracing::warn!(target: "tui.home", "Failed to reload session state: {e}");
                 }
             } else {
                 let error = if result.errors.is_empty() {
@@ -725,6 +725,7 @@ impl HomeView {
                 // being re-imported into memory and disk.
                 if inst.retroactive_capture_excludes.contains(&session_id) {
                     tracing::debug!(
+                        target: "tui.home",
                         "Ignoring poller-reported sid {} for {}: in retroactive_capture_excludes",
                         session_id,
                         inst.id,
@@ -753,7 +754,7 @@ impl HomeView {
                 });
             }
             if let Err(e) = self.save() {
-                tracing::error!("Failed to save after session ID update: {}", e);
+                tracing::error!(target: "tui.home", "Failed to save after session ID update: {}", e);
                 for (id, old_val) in &prev {
                     self.mutate_instance(id, |inst| {
                         inst.agent_session_id = old_val.clone();
@@ -970,7 +971,7 @@ impl HomeView {
                 }
 
                 if let Err(e) = self.save() {
-                    tracing::error!("Failed to save after creation: {}", e);
+                    tracing::error!(target: "tui.home", "Failed to save after creation: {}", e);
                 }
 
                 if on_launch_hooks_ran {
@@ -978,7 +979,7 @@ impl HomeView {
                 }
 
                 if let Err(e) = self.reload() {
-                    tracing::warn!("Failed to reload session state: {e}");
+                    tracing::warn!(target: "tui.home", "Failed to reload session state: {e}");
                 }
                 self.new_dialog = None;
 
@@ -1073,7 +1074,7 @@ impl HomeView {
                         main_repo_path: std::path::PathBuf::from(&wt.main_repo_path),
                     });
             crate::session::builder::cleanup_instance(instance, worktree.as_ref(), &[]);
-            tracing::info!("Cleaned up cancelled session on exit");
+            tracing::info!(target: "tui.home", "Cleaned up cancelled session on exit");
         }
     }
 
@@ -1221,25 +1222,34 @@ impl HomeView {
         if let Ok(mut config) = load_config().map(|c| c.unwrap_or_default()) {
             config.app_state.home_list_width = Some(self.list_width);
             if let Err(e) = save_config(&config) {
-                tracing::warn!("Failed to save config: {e}");
+                tracing::warn!(target: "tui.home", "Failed to save config: {e}");
             }
         }
     }
 
     pub fn show_welcome(&mut self) {
+        tracing::info!(target: "tui.dialog", dialog = "welcome", "opening");
         self.welcome_dialog = Some(WelcomeDialog::new());
     }
 
     pub fn show_no_agents(&mut self) {
+        tracing::info!(target: "tui.dialog", dialog = "no_agents", "opening");
         self.no_agents_dialog = Some(NoAgentsDialog::new());
     }
 
     /// Replace available tools (used after re-check from no-agents dialog).
     pub fn set_available_tools(&mut self, tools: AvailableTools) {
+        tracing::debug!(target: "tui.home", count = tools.available_list().len(), "available tools refreshed");
         self.available_tools = tools;
     }
 
     pub fn show_changelog(&mut self, from_version: Option<String>) {
+        tracing::info!(
+            target: "tui.dialog",
+            dialog = "changelog",
+            from_version = ?from_version,
+            "opening",
+        );
         self.changelog_dialog = Some(ChangelogDialog::new(from_version));
     }
 
