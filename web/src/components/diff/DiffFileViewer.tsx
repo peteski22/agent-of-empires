@@ -524,7 +524,24 @@ export function DiffFileViewer({
                 <SplitHunkView
                   key={`${hunk.old_start}-${hunk.new_start}`}
                   hunk={hunk}
+                  hunkIndex={hi}
                   lineTokens={tokenGrid?.[hi]}
+                  commentsEnabled={commentsEnabled && !!commentsStore}
+                  cardsByEndRow={cardsByHunkRow.get(hi) ?? EMPTY_MAP}
+                  formRowIndex={draft?.hunkIndex === hi ? draft.endRowIndex : null}
+                  draftSide={draft?.hunkIndex === hi ? draft.side : null}
+                  draftStartLine={draft?.hunkIndex === hi ? draft.startLine : null}
+                  draftEndLine={draft?.hunkIndex === hi ? draft.endLine : null}
+                  rangeStart={
+                    rangeStart?.hunkIndex === hi
+                      ? { side: rangeStart.side, line: rangeStart.line }
+                      : null
+                  }
+                  onPlusClick={handlePlusClick}
+                  onCommentSave={handleCommentSave}
+                  onCommentDelete={handleCommentDelete}
+                  onDraftSave={handleDraftSave}
+                  onDraftCancel={handleDraftCancel}
                 />
               ) : (
                 <HunkView

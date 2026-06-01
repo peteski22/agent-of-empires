@@ -2,11 +2,29 @@ import { Fragment } from "react";
 import type { SyntaxToken } from "../../hooks/useHighlightedLines";
 import type { RichDiffHunk, RichDiffLine } from "../../lib/types";
 import { buildSplitRows } from "../../lib/splitDiff";
+import { CommentCard } from "./comments/CommentCard";
+import { CommentForm } from "./comments/CommentForm";
+import type { AnchoredComment, DiffSide } from "./comments/types";
 
 interface Props {
   hunk: RichDiffHunk;
-  /** Tokens for this hunk, indexed by the line's index within `hunk.lines`. */
+  hunkIndex: number;
   lineTokens?: SyntaxToken[][];
+  commentsEnabled: boolean;
+  /** Active comment cards for this hunk, keyed by the row index (within
+   *  `hunk.lines`) of the anchor's end line. */
+  cardsByEndRow: Map<number, AnchoredComment[]>;
+  /** Row index (within `hunk.lines`) at which to render the draft form. */
+  formRowIndex: number | null;
+  draftSide: DiffSide | null;
+  draftStartLine: number | null;
+  draftEndLine: number | null;
+  rangeStart: { side: DiffSide; line: number } | null;
+  onPlusClick: (hunkIndex: number, side: DiffSide, lineNum: number) => void;
+  onCommentSave: (id: string, body: string) => void;
+  onCommentDelete: (id: string) => void;
+  onDraftSave: (body: string) => void;
+  onDraftCancel: () => void;
 }
 
 function renderTokens(line: RichDiffLine, tokens?: SyntaxToken[]) {
@@ -28,10 +46,20 @@ function SplitCell({
   line,
   lineNum,
   tokens,
+  side,
+  hunkIndex,
+  commentsEnabled,
+  plusActive,
+  onPlusClick,
 }: {
   line: RichDiffLine | null;
   lineNum: number | null;
   tokens?: SyntaxToken[];
+  side: DiffSide;
+  hunkIndex: number;
+  commentsEnabled: boolean;
+  plusActive: boolean;
+  onPlusClick: (hunkIndex: number, side: DiffSide, lineNum: number) => void;
 }) {
   if (!line) {
     return <div className="flex flex-1 min-w-0 bg-surface-850/40" />;
@@ -48,9 +76,25 @@ function SplitCell({
     textClass = "text-status-error";
     prefix = "-";
   }
+  const showPlus = commentsEnabled && lineNum != null;
   return (
-    <div className={`flex flex-1 min-w-0 ${bgClass}`}>
-      <span className="shrink-0 w-[50px] text-right pr-2 font-mono text-[11px] text-text-dim select-none border-r border-surface-700/30">
+    <div className={`group/cell flex flex-1 min-w-0 ${bgClass}`}>
+      <span className="shrink-0 w-[50px] text-right pr-2 font-mono text-[11px] text-text-dim select-none border-r border-surface-700/30 relative">
+        {showPlus && (
+          <button
+            type="button"
+            onClick={() => onPlusClick(hunkIndex, side, lineNum)}
+            aria-label={`Add comment on ${side} line ${lineNum}`}
+            tabIndex={-1}
+            className={`absolute left-0 top-0 h-full w-4 flex items-center justify-center text-white text-[11px] leading-none cursor-pointer transition-opacity ${
+              plusActive
+                ? "bg-brand-600 opacity-100"
+                : "bg-brand-600 opacity-0 group-hover/cell:opacity-100 hover:bg-brand-500"
+            }`}
+          >
+            +
+          </button>
+        )}
         {lineNum ?? ""}
       </span>
       <span className={`shrink-0 w-4 text-center font-mono text-[12px] ${textClass} select-none`}>
@@ -63,7 +107,23 @@ function SplitCell({
   );
 }
 
-export function SplitHunkView({ hunk, lineTokens }: Props) {
+export function SplitHunkView({
+  hunk,
+  hunkIndex,
+  lineTokens,
+  commentsEnabled,
+  cardsByEndRow,
+  formRowIndex,
+  draftSide,
+  draftStartLine,
+  draftEndLine,
+  rangeStart,
+  onPlusClick,
+  onCommentSave,
+  onCommentDelete,
+  onDraftSave,
+  onDraftCancel,
+}: Props) {
   const rows = buildSplitRows(hunk);
   return (
     <div>
@@ -72,23 +132,64 @@ export function SplitHunkView({ hunk, lineTokens }: Props) {
           @@ -{hunk.old_start},{hunk.old_lines} +{hunk.new_start},{hunk.new_lines} @@
         </span>
       </div>
-      {rows.map((row, i) => (
-        <Fragment key={i}>
-          <div className="flex">
-            <SplitCell
-              line={row.left}
-              lineNum={row.left?.old_line_num ?? null}
-              tokens={row.leftIndex != null ? lineTokens?.[row.leftIndex] : undefined}
-            />
-            <div className="w-px bg-surface-700/40 shrink-0" />
-            <SplitCell
-              line={row.right}
-              lineNum={row.right?.new_line_num ?? null}
-              tokens={row.rightIndex != null ? lineTokens?.[row.rightIndex] : undefined}
-            />
-          </div>
-        </Fragment>
-      ))}
+      {rows.map((row, i) => {
+        // A row's "source index" for card/form anchoring is the index of
+        // whichever side carries the change (new side preferred, matching
+        // unified's side preference).
+        const anchorIndex = row.rightIndex ?? row.leftIndex;
+        const cards = anchorIndex != null ? cardsByEndRow.get(anchorIndex) : undefined;
+        const showForm =
+          formRowIndex != null && anchorIndex === formRowIndex && draftSide != null;
+        const leftActive =
+          rangeStart?.side === "old" && rangeStart.line === row.left?.old_line_num;
+        const rightActive =
+          rangeStart?.side === "new" && rangeStart.line === row.right?.new_line_num;
+        return (
+          <Fragment key={i}>
+            <div className="flex">
+              <SplitCell
+                line={row.left}
+                lineNum={row.left?.old_line_num ?? null}
+                tokens={row.leftIndex != null ? lineTokens?.[row.leftIndex] : undefined}
+                side="old"
+                hunkIndex={hunkIndex}
+                commentsEnabled={commentsEnabled}
+                plusActive={!!leftActive}
+                onPlusClick={onPlusClick}
+              />
+              <div className="w-px bg-surface-700/40 shrink-0" />
+              <SplitCell
+                line={row.right}
+                lineNum={row.right?.new_line_num ?? null}
+                tokens={row.rightIndex != null ? lineTokens?.[row.rightIndex] : undefined}
+                side="new"
+                hunkIndex={hunkIndex}
+                commentsEnabled={commentsEnabled}
+                plusActive={!!rightActive}
+                onPlusClick={onPlusClick}
+              />
+            </div>
+            {cards?.map((anchored) => (
+              <CommentCard
+                key={`card-${anchored.comment.id}`}
+                anchored={anchored}
+                onSave={onCommentSave}
+                onDelete={onCommentDelete}
+              />
+            ))}
+            {showForm && draftSide && draftStartLine != null && draftEndLine != null && (
+              <CommentForm
+                key={`form-${hunkIndex}-${i}`}
+                startLine={draftStartLine}
+                endLine={draftEndLine}
+                side={draftSide}
+                onSave={onDraftSave}
+                onCancel={onDraftCancel}
+              />
+            )}
+          </Fragment>
+        );
+      })}
     </div>
   );
 }
