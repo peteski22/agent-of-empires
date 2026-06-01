@@ -2,6 +2,7 @@
 
 mod input;
 mod render;
+mod split;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
