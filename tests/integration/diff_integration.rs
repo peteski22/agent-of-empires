@@ -194,6 +194,7 @@ mod config {
         let config = DiffConfig {
             default_branch: Some("main".to_string()),
             context_lines: 10,
+            split_view: false,
         };
 
         let serialized = toml::to_string(&config).unwrap();
