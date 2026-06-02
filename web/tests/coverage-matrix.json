@@ -965,6 +965,18 @@
       ]
     },
     {
+      "id": "settings.diff-section",
+      "kind": "vitest",
+      "risk": "low",
+      "specs": [
+        "src/components/settings/__tests__/DiffSettings.test.tsx"
+      ],
+      "components": [
+        "web/src/components/settings/DiffSettings.tsx",
+        "web/src/components/SettingsView.tsx"
+      ]
+    },
+    {
       "id": "devices",
       "kind": "live-playwright",
       "risk": "low",
