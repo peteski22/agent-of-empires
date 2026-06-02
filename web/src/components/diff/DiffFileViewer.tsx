@@ -236,18 +236,23 @@ export function DiffFileViewer({
   );
 
   const { settings, update } = useWebSettings();
-  const scrollRef = useRef<HTMLDivElement | null>(null);
   const [isWide, setIsWide] = useState(true);
+  const widthObserverRef = useRef<ResizeObserver | null>(null);
 
-  useEffect(() => {
-    const el = scrollRef.current;
+  // Callback ref: the scroll container is rendered only after the loading /
+  // error / empty guards below, so it may mount well after first paint. A
+  // callback ref attaches the observer the moment the node mounts (and tears it
+  // down on unmount), unlike a one-shot mount effect that would miss the late
+  // mount and never measure width.
+  const measureRef = useCallback((el: HTMLDivElement | null) => {
+    widthObserverRef.current?.disconnect();
+    widthObserverRef.current = null;
     if (!el || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width ?? 0;
-      setIsWide(w >= 640);
+      setIsWide((entries[0]?.contentRect.width ?? 0) >= 640);
     });
     ro.observe(el);
-    return () => ro.disconnect();
+    widthObserverRef.current = ro;
   }, []);
 
   const splitActive = settings.diffViewLayout === "split" && isWide;
@@ -477,7 +482,7 @@ export function DiffFileViewer({
       </div>
 
       {/* Diff content */}
-      <div ref={scrollRef} className="flex-1 overflow-auto">
+      <div ref={measureRef} className="flex-1 overflow-auto">
         {diff.is_binary ? (
           <div className="flex items-center justify-center h-full text-text-dim">
             <span className="text-sm">Binary file changed</span>

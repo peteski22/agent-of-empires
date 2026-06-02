@@ -133,13 +133,22 @@ export function SplitHunkView({
         </span>
       </div>
       {rows.map((row, i) => {
-        // A row's "source index" for card/form anchoring is the index of
-        // whichever side carries the change (new side preferred, matching
-        // unified's side preference).
-        const anchorIndex = row.rightIndex ?? row.leftIndex;
-        const cards = anchorIndex != null ? cardsByEndRow.get(anchorIndex) : undefined;
+        // Cards and forms anchor to a line's index within the hunk, but a
+        // modify row carries two lines (old on the left, new on the right).
+        // Look up both sides so an old-side comment on a modify row isn't
+        // dropped; context rows share one index, so guard against
+        // double-counting.
+        const leftCards =
+          row.leftIndex != null ? cardsByEndRow.get(row.leftIndex) : undefined;
+        const rightCards =
+          row.rightIndex != null && row.rightIndex !== row.leftIndex
+            ? cardsByEndRow.get(row.rightIndex)
+            : undefined;
+        const cards = [...(leftCards ?? []), ...(rightCards ?? [])];
         const showForm =
-          formRowIndex != null && anchorIndex === formRowIndex && draftSide != null;
+          formRowIndex != null &&
+          draftSide != null &&
+          (formRowIndex === row.leftIndex || formRowIndex === row.rightIndex);
         const leftActive =
           rangeStart?.side === "old" && rangeStart.line === row.left?.old_line_num;
         const rightActive =

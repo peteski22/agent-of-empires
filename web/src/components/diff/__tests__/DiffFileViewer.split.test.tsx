@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 //
-// Covers the unified/split toggle in DiffFileViewer and its localStorage
-// persistence via useWebSettings. The ResizeObserver is stubbed to report
-// a wide viewport so the split branch actually activates on toggle.
+// Covers the unified/split toggle in DiffFileViewer, its localStorage
+// persistence via useWebSettings, and that the width ResizeObserver attaches
+// even when the diff container mounts after an initial loading phase.
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -34,8 +34,20 @@ const diff: RichFileDiffResponse = {
   truncated: false,
 };
 
+// Mutable mock state so a test can start in the loading phase (no diff) and
+// then have the diff arrive, exercising the late-mount path of the container.
+const mock = vi.hoisted(() => ({
+  diff: undefined as RichFileDiffResponse | undefined,
+  observe: vi.fn(),
+}));
+
 vi.mock("../../../hooks/useFileDiff", () => ({
-  useFileDiff: () => ({ diff, loading: false, error: null, refresh: vi.fn() }),
+  useFileDiff: () => ({
+    diff: mock.diff,
+    loading: mock.diff === undefined,
+    error: null,
+    refresh: vi.fn(),
+  }),
 }));
 
 vi.mock("../../../hooks/useHighlightedLines", () => ({
@@ -44,14 +56,17 @@ vi.mock("../../../hooks/useHighlightedLines", () => ({
 
 beforeEach(() => {
   window.localStorage.clear();
-  // Stub ResizeObserver to immediately report a wide viewport so the split
-  // path is available when the toggle is activated.
+  mock.diff = diff;
+  mock.observe.mockClear();
+  // Stub ResizeObserver to immediately report a wide viewport (and record
+  // observe calls) so the split path is available when the toggle is activated.
   class WideRO {
     cb: ResizeObserverCallback;
     constructor(cb: ResizeObserverCallback) {
       this.cb = cb;
     }
-    observe() {
+    observe(el: Element) {
+      mock.observe(el);
       this.cb(
         [{ contentRect: { width: 1000 } } as ResizeObserverEntry],
         this as unknown as ResizeObserver,
@@ -92,5 +107,20 @@ describe("DiffFileViewer split layout", () => {
     expect(
       JSON.parse(window.localStorage.getItem("aoe-web-settings") ?? "{}").diffViewLayout,
     ).toBe("split");
+  });
+
+  it("attaches the width observer when the diff container mounts after loading", async () => {
+    // Start in the loading phase: the scroll container is behind the early
+    // returns, so it is not mounted and the observer must not have attached.
+    mock.diff = undefined;
+    const { rerender } = render(<DiffFileViewer sessionId="s1" filePath="a.ts" />);
+    expect(mock.observe).not.toHaveBeenCalled();
+
+    // Diff arrives: the container mounts and the callback ref must attach the
+    // observer (a one-shot mount effect would have missed this late mount).
+    mock.diff = diff;
+    rerender(<DiffFileViewer sessionId="s1" filePath="a.ts" />);
+    await screen.findByText(/Modified/i);
+    expect(mock.observe).toHaveBeenCalled();
   });
 });
