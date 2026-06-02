@@ -17,6 +17,10 @@ const files: RichDiffFile[] = [
 const perRepoBases: RepoBase[] = [{ base_branch: "main" }];
 
 function stubClipboard() {
+  Object.defineProperty(window, "isSecureContext", {
+    value: true,
+    configurable: true,
+  });
   const writeText = vi.fn().mockResolvedValue(undefined);
   Object.defineProperty(navigator, "clipboard", {
     value: { writeText },
@@ -91,6 +95,10 @@ describe("DiffFileList copy relative path", () => {
     );
 
     const row = screen.getByText("foo.rs").closest("button");
+    // Sanity-check we're actually in flat mode: FlatList renders the dir
+    // prefix inline on the row, so the test stays honest if the view-mode
+    // wiring changes.
+    expect(row?.textContent).toContain("src/app/");
     fireEvent.contextMenu(row as HTMLElement);
     fireEvent.click(screen.getByText("Copy relative path"));
     expect(writeText).toHaveBeenCalledWith("src/app/foo.rs");
