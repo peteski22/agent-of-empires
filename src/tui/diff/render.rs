@@ -358,6 +358,8 @@ impl DiffView {
                 Span::styled(": edit  ", Style::default().fg(theme.dimmed)),
                 Span::styled("b", Style::default().fg(theme.accent)),
                 Span::styled(": branch  ", Style::default().fg(theme.dimmed)),
+                Span::styled("y", Style::default().fg(theme.accent)),
+                Span::styled(": copy path  ", Style::default().fg(theme.dimmed)),
                 Span::styled("?", Style::default().fg(theme.accent)),
                 Span::styled(": help  ", Style::default().fg(theme.dimmed)),
                 Span::styled("q/Esc", Style::default().fg(theme.accent)),
@@ -491,7 +493,7 @@ impl DiffView {
 
     fn render_help(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let dialog_width = 55u16;
-        let dialog_height = 19u16;
+        let dialog_height = 20u16;
 
         let x = area.x + (area.width.saturating_sub(dialog_width)) / 2;
         let y = area.y + (area.height.saturating_sub(dialog_height)) / 2;
@@ -537,6 +539,7 @@ impl DiffView {
                     ("e/Enter", "Edit file in external editor"),
                     ("b", "Select base branch"),
                     ("r", "Refresh diff"),
+                    ("y", "Copy file path to clipboard"),
                 ],
             ),
             (
