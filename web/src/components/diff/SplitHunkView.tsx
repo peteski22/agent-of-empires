@@ -100,7 +100,7 @@ function SplitCell({
       <span className={`shrink-0 w-4 text-center font-mono text-[12px] ${textClass} select-none`}>
         {prefix}
       </span>
-      <span className="flex-1 min-w-0 font-mono text-[12px] whitespace-pre overflow-hidden">
+      <span className="flex-1 min-w-0 font-mono text-[12px] whitespace-pre-wrap break-words">
         {renderTokens(line, tokens)}
       </span>
     </div>
@@ -178,7 +178,7 @@ export function SplitHunkView({
                 onPlusClick={onPlusClick}
               />
             </div>
-            {cards?.map((anchored) => (
+            {cards.map((anchored) => (
               <CommentCard
                 key={`card-${anchored.comment.id}`}
                 anchored={anchored}

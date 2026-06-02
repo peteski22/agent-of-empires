@@ -458,6 +458,7 @@ export function DiffFileViewer({
             type="button"
             onClick={() => update({ diffViewLayout: "unified" })}
             aria-pressed={settings.diffViewLayout === "unified"}
+            title="Unified diff"
             className={`px-2 py-0.5 text-[11px] font-mono cursor-pointer transition-colors ${
               settings.diffViewLayout === "unified"
                 ? "bg-brand-600 text-white"
@@ -470,9 +471,16 @@ export function DiffFileViewer({
             type="button"
             onClick={() => update({ diffViewLayout: "split" })}
             aria-pressed={settings.diffViewLayout === "split"}
+            title={
+              settings.diffViewLayout === "split" && !isWide
+                ? "Split selected, but this pane is too narrow; showing unified"
+                : "Side-by-side diff"
+            }
             className={`px-2 py-0.5 text-[11px] font-mono cursor-pointer transition-colors ${
               settings.diffViewLayout === "split"
-                ? "bg-brand-600 text-white"
+                ? splitActive
+                  ? "bg-brand-600 text-white"
+                  : "bg-brand-600/40 text-white/80"
                 : "text-text-dim hover:text-text-secondary"
             }`}
           >
