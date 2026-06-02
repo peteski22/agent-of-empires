@@ -327,6 +327,17 @@ impl DiffView {
         }
     }
 
+    /// Persist the current `split_view` choice to the global config so it
+    /// survives restarts and stays in sync with the settings TUI.
+    pub(crate) fn persist_split_view(&self) {
+        if let Ok(mut config) = load_config().map(|c| c.unwrap_or_default()) {
+            config.diff.split_view = self.split_view;
+            if let Err(e) = save_config(&config) {
+                tracing::warn!("failed to persist diff split_view: {e}");
+            }
+        }
+    }
+
     /// Minimal DiffView for unit tests. Centralised so new fields only need
     /// a default value in one place.
     #[cfg(test)]

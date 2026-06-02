@@ -219,16 +219,12 @@ impl DiffView {
         content_w: usize,
         theme: &Theme,
     ) -> Vec<Span<'a>> {
+        // Every cell occupies exactly this width (line number + space + marker
+        // + padded content) so both columns line up and the divider draws as a
+        // straight vertical line regardless of content length.
+        let cell_w = num_width + 2 + content_w;
         match line {
-            None => vec![Span::styled(
-                format!(
-                    "{} {} {}",
-                    " ".repeat(num_width),
-                    " ",
-                    " ".repeat(content_w)
-                ),
-                Style::default().fg(theme.dimmed),
-            )],
+            None => vec![Span::raw(" ".repeat(cell_w))],
             Some(l) => {
                 let (prefix, style) = match l.tag {
                     ChangeTag::Delete => ("-", Style::default().fg(theme.diff_delete)),
@@ -244,12 +240,15 @@ impl DiffView {
                     .map(|n| format!("{:>w$}", n, w = num_width))
                     .unwrap_or_else(|| " ".repeat(num_width));
                 let mut content = l.content.trim_end_matches('\n').to_string();
-                if content.chars().count() > content_w {
+                let display_w = content.chars().count();
+                if display_w > content_w {
                     content = content
                         .chars()
                         .take(content_w.saturating_sub(1))
                         .collect::<String>()
                         + "\u{2026}";
+                } else {
+                    content.push_str(&" ".repeat(content_w - display_w));
                 }
                 vec![
                     Span::styled(format!("{} ", num_str), Style::default().fg(theme.dimmed)),
@@ -432,6 +431,17 @@ impl DiffView {
                 Span::styled(": edit  ", Style::default().fg(theme.dimmed)),
                 Span::styled("b", Style::default().fg(theme.accent)),
                 Span::styled(": branch  ", Style::default().fg(theme.dimmed)),
+                Span::styled("s", Style::default().fg(theme.accent)),
+                // Name the layout `s` switches TO, so the hint stays correct
+                // once you are already in split view.
+                Span::styled(
+                    if self.split_view {
+                        ": unified  "
+                    } else {
+                        ": split  "
+                    },
+                    Style::default().fg(theme.dimmed),
+                ),
                 Span::styled("?", Style::default().fg(theme.accent)),
                 Span::styled(": help  ", Style::default().fg(theme.dimmed)),
                 Span::styled("q/Esc", Style::default().fg(theme.accent)),
@@ -611,6 +621,7 @@ impl DiffView {
                     ("e/Enter", "Edit file in external editor"),
                     ("b", "Select base branch"),
                     ("r", "Refresh diff"),
+                    ("s", "Toggle side-by-side (split) layout"),
                 ],
             ),
             (
@@ -791,6 +802,70 @@ mod tests {
         assert!(
             out.contains("NEWCONTENT"),
             "expected new content on right side, got:\n{out}"
+        );
+    }
+
+    #[test]
+    fn split_view_aligns_divider_into_one_column() {
+        use crate::git::diff::{DiffFile, DiffHunk, DiffLine, FileDiff};
+        use std::path::PathBuf;
+
+        let path = PathBuf::from("a.txt");
+        let dl = |tag, o: Option<usize>, n: Option<usize>, c: &str| DiffLine {
+            tag,
+            old_line_num: o,
+            new_line_num: n,
+            content: format!("{c}\n"),
+        };
+        let file = DiffFile {
+            path: path.clone(),
+            old_path: None,
+            status: FileStatus::Modified,
+            additions: 1,
+            deletions: 1,
+        };
+        let diff = FileDiff {
+            file: file.clone(),
+            hunks: vec![DiffHunk {
+                old_start: 1,
+                old_lines: 3,
+                new_start: 1,
+                new_lines: 3,
+                lines: vec![
+                    // Deliberately varied left-content lengths: an unpadded
+                    // column would put the divider at different offsets.
+                    dl(ChangeTag::Equal, Some(1), Some(1), "short"),
+                    dl(
+                        ChangeTag::Delete,
+                        Some(2),
+                        None,
+                        "a considerably longer line of content",
+                    ),
+                    dl(ChangeTag::Insert, None, Some(2), "x"),
+                    dl(ChangeTag::Equal, Some(3), Some(3), "mid length"),
+                ],
+            }],
+            is_binary: false,
+        };
+
+        let mut view = DiffView::test_default();
+        view.files = vec![file];
+        view.selected_file = 0;
+        view.diff_cache.insert(path, diff);
+        view.split_view = true;
+
+        let out = render_diff_to_string(&mut view, 200, 20);
+        // The split divider is rendered as " | " (space-pipe-space); panel
+        // borders never have spaces on both sides, so this finds only the
+        // split dividers. Every one must sit in the same column.
+        let cols: Vec<usize> = out.lines().filter_map(|l| l.find(" \u{2502} ")).collect();
+        assert!(
+            cols.len() >= 3,
+            "expected a divider on each split row, got {cols:?}:\n{out}"
+        );
+        assert!(
+            cols.iter().all(|&c| c == cols[0]),
+            "split divider must align into one column, got {cols:?}:\n{out}"
         );
     }
 
