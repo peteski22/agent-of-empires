@@ -261,6 +261,29 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn s_key_toggles_split_view() {
+        // Restore HOME/XDG on drop (even on panic) so later serial tests don't
+        // inherit a temp HOME pointing at a since-deleted directory.
+        struct EnvGuard {
+            home: Option<std::ffi::OsString>,
+            xdg: Option<std::ffi::OsString>,
+        }
+        impl Drop for EnvGuard {
+            fn drop(&mut self) {
+                match self.home.take() {
+                    Some(v) => std::env::set_var("HOME", v),
+                    None => std::env::remove_var("HOME"),
+                }
+                match self.xdg.take() {
+                    Some(v) => std::env::set_var("XDG_CONFIG_HOME", v),
+                    None => std::env::remove_var("XDG_CONFIG_HOME"),
+                }
+            }
+        }
+        let _env = EnvGuard {
+            home: std::env::var_os("HOME"),
+            xdg: std::env::var_os("XDG_CONFIG_HOME"),
+        };
+
         let temp_home = tempfile::TempDir::new().unwrap();
         std::env::set_var("HOME", temp_home.path());
         #[cfg(target_os = "linux")]

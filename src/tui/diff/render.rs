@@ -11,6 +11,7 @@ use ratatui::{
     Frame,
 };
 use similar::ChangeTag;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use super::DiffView;
 use crate::git::diff::FileStatus;
@@ -239,16 +240,29 @@ impl DiffView {
                 let num_str = num
                     .map(|n| format!("{:>w$}", n, w = num_width))
                     .unwrap_or_else(|| " ".repeat(num_width));
-                let mut content = l.content.trim_end_matches('\n').to_string();
-                let display_w = content.chars().count();
-                if display_w > content_w {
-                    content = content
-                        .chars()
-                        .take(content_w.saturating_sub(1))
-                        .collect::<String>()
-                        + "\u{2026}";
+                // Measure and pad by terminal column width, not scalar count,
+                // so wide (CJK/emoji) characters keep the two columns aligned.
+                let raw = l.content.trim_end_matches('\n');
+                let mut content = if UnicodeWidthStr::width(raw) > content_w {
+                    let budget = content_w.saturating_sub(1);
+                    let mut used = 0usize;
+                    let mut truncated = String::new();
+                    for ch in raw.chars() {
+                        let cw = UnicodeWidthChar::width(ch).unwrap_or(0);
+                        if used + cw > budget {
+                            break;
+                        }
+                        used += cw;
+                        truncated.push(ch);
+                    }
+                    truncated.push('\u{2026}');
+                    truncated
                 } else {
-                    content.push_str(&" ".repeat(content_w - display_w));
+                    raw.to_string()
+                };
+                let used = UnicodeWidthStr::width(content.as_str());
+                if used < content_w {
+                    content.push_str(&" ".repeat(content_w - used));
                 }
                 vec![
                     Span::styled(format!("{} ", num_str), Style::default().fg(theme.dimmed)),

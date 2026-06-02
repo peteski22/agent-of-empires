@@ -12,7 +12,7 @@ use crate::git::diff::{
     list_branches, DiffFile, FileDiff,
 };
 use crate::session::config::{load_config, save_config};
-use crate::session::Config;
+use crate::session::{load_profile_config, resolve_config_or_warn, save_profile_config, Config};
 use crate::tui::dialogs::InfoDialog;
 
 pub use input::DiffAction;
@@ -116,7 +116,14 @@ impl DiffView {
         profile: String,
         base_override: Option<String>,
     ) -> anyhow::Result<Self> {
-        let config = Config::load_or_warn();
+        // Use the profile-merged config so a per-profile Diff override (e.g.
+        // split_view) is honored on open. The session-agnostic path (empty
+        // profile) falls back to the global config.
+        let config = if profile.is_empty() {
+            Config::load_or_warn()
+        } else {
+            resolve_config_or_warn(&profile)
+        };
 
         let base_branch = base_override
             .as_deref()
@@ -327,13 +334,35 @@ impl DiffView {
         }
     }
 
-    /// Persist the current `split_view` choice to the global config so it
-    /// survives restarts and stays in sync with the settings TUI.
+    /// Persist the current `split_view` choice so it survives restarts and
+    /// stays in sync with the settings TUI. A profile-scoped session writes the
+    /// choice to that profile's override; a session-agnostic view writes the
+    /// global default.
     pub(crate) fn persist_split_view(&self) {
-        if let Ok(mut config) = load_config().map(|c| c.unwrap_or_default()) {
-            config.diff.split_view = self.split_view;
-            if let Err(e) = save_config(&config) {
-                tracing::warn!("failed to persist diff split_view: {e}");
+        if self.profile.is_empty() {
+            if let Ok(mut config) = load_config().map(|c| c.unwrap_or_default()) {
+                config.diff.split_view = self.split_view;
+                if let Err(e) = save_config(&config) {
+                    tracing::warn!("failed to persist diff split_view: {e}");
+                }
+            }
+            return;
+        }
+        match load_profile_config(&self.profile) {
+            Ok(mut profile_config) => {
+                profile_config
+                    .diff
+                    .get_or_insert_with(Default::default)
+                    .split_view = Some(self.split_view);
+                if let Err(e) = save_profile_config(&self.profile, &profile_config) {
+                    tracing::warn!(
+                        "failed to persist diff split_view for profile {}: {e}",
+                        self.profile
+                    );
+                }
+            }
+            Err(e) => {
+                tracing::warn!("failed to load profile config {}: {e}", self.profile);
             }
         }
     }

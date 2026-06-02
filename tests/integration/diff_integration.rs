@@ -202,5 +202,6 @@ mod config {
 
         assert_eq!(config.default_branch, deserialized.default_branch);
         assert_eq!(config.context_lines, deserialized.context_lines);
+        assert_eq!(config.split_view, deserialized.split_view);
     }
 }
