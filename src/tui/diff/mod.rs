@@ -71,6 +71,9 @@ pub struct DiffView {
     /// Context lines for diff
     pub(crate) context_lines: usize,
 
+    /// Render the selected file's diff side-by-side instead of unified.
+    pub(crate) split_view: bool,
+
     /// Show help overlay
     pub(crate) show_help: bool,
 
@@ -125,6 +128,7 @@ impl DiffView {
             .unwrap_or_else(|| "main".to_string());
 
         let context_lines = config.diff.context_lines;
+        let split_view = config.diff.split_view;
 
         let warning_dialog = check_merge_base_status(&repo_path, &base_branch)
             .map(|msg| InfoDialog::new("Warning", &msg));
@@ -144,6 +148,7 @@ impl DiffView {
             error_message: None,
             success_message: None,
             context_lines,
+            split_view,
             show_help: false,
             file_list_width: config.app_state.diff_file_list_width.unwrap_or(35),
             warning_dialog,
@@ -341,6 +346,7 @@ impl DiffView {
             error_message: None,
             success_message: None,
             context_lines: 3,
+            split_view: false,
             show_help: false,
             file_list_width: 35,
             warning_dialog: None,

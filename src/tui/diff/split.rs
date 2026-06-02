@@ -5,7 +5,6 @@ use similar::ChangeTag;
 
 /// One row of a split diff. `left` is the old side, `right` the new side;
 /// either is `None` where that side has no line for this row.
-#[allow(dead_code)] // removed in the next task once render uses it
 pub struct SplitRow<'a> {
     pub left: Option<&'a DiffLine>,
     pub right: Option<&'a DiffLine>,
@@ -30,7 +29,6 @@ fn flush<'a>(
 /// Pair `hunk.lines` into side-by-side rows. A maximal run of non-equal
 /// lines is one change block: its deletions and additions are zipped
 /// index-by-index, surplus lines get a `None` placeholder opposite them.
-#[allow(dead_code)] // removed in the next task once render uses it
 pub fn build_split_rows(hunk: &DiffHunk) -> Vec<SplitRow<'_>> {
     let mut rows: Vec<SplitRow> = Vec::new();
     let mut dels: Vec<&DiffLine> = Vec::new();
