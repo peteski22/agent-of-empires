@@ -203,7 +203,7 @@ unchanged.
 
 ## Acknowledgments
 
-Inspired by [agent-deck](https://github.com/asheshgoplani/agent-deck) (Go + Bubble Tea).
+Agent of Empires began as a Rust rewrite of [agent-deck](https://github.com/asheshgoplani/agent-deck) by Ashesh Goplani (originally Go + Bubble Tea) and has since developed independently, with features flowing in both directions. agent-deck is MIT-licensed; its copyright notice is retained in [LICENSE](./LICENSE) and [NOTICE](./NOTICE).
 
 ## Maintainers
 

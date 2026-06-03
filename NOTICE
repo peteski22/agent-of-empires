@@ -1,0 +1,11 @@
+Agent of Empires
+Copyright (c) 2026 Nathan Brake
+
+This project began as a derivative work (a Go-to-Rust rewrite) of agent-deck,
+and has since been developed independently. Per the terms of the MIT License,
+the original work's copyright notice is retained below.
+
+  agent-deck
+  https://github.com/asheshgoplani/agent-deck
+  Copyright (c) 2025 Ashesh Goplani
+  Licensed under the MIT License.
