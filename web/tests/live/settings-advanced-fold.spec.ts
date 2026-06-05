@@ -29,18 +29,18 @@ test("sandbox advanced knob edits persist after expanding the fold", async ({
 
   // A high-level control is visible immediately; the advanced knob is folded
   // away by default.
-  await expect(page.getByText("Sandbox enabled by default")).toBeVisible({
+  await expect(page.getByText("Enabled by Default")).toBeVisible({
     timeout: 10_000,
   });
   await expect(
-    page.locator("label", { hasText: /^CPU limit$/ }),
+    page.locator("label", { hasText: /^CPU Limit$/ }),
   ).toHaveCount(0);
 
   // Expand the Advanced fold.
   await page.getByRole("button", { name: /Advanced/ }).first().click();
 
   const cpuInput = page
-    .locator("label", { hasText: /^CPU limit$/ })
+    .locator("label", { hasText: /^CPU Limit$/ })
     .locator("..")
     .locator('input[type="text"]');
   await expect(cpuInput).toBeVisible({ timeout: 5_000 });
@@ -58,11 +58,11 @@ test("sandbox advanced knob edits persist after expanding the fold", async ({
   // Frontend-side: after reload the fold is collapsed again (component-local,
   // not persisted), and re-expanding shows the persisted value.
   await page.reload();
-  await expect(page.getByText("Sandbox enabled by default")).toBeVisible({
+  await expect(page.getByText("Enabled by Default")).toBeVisible({
     timeout: 10_000,
   });
   await expect(
-    page.locator("label", { hasText: /^CPU limit$/ }),
+    page.locator("label", { hasText: /^CPU Limit$/ }),
   ).toHaveCount(0);
 
   await page.getByRole("button", { name: /Advanced/ }).first().click();
@@ -83,7 +83,7 @@ test("worktree, structured-view, and logging advanced folds expand in the browse
     // "Bare Repo Template") rather than the old hand-written web copy.
     { tab: "worktree", anchor: "Enabled by Default", field: /^Bare Repo Template$/ },
     { tab: "structured-view", anchor: "Show tool-call durations", field: /^Replay buffer bytes$/ },
-    { tab: "logging", anchor: "Default level", field: /^Output$/ },
+    { tab: "logging", anchor: "Default level", field: /^Output \(restart req\.\)$/ },
   ];
 
   for (const { tab, anchor, field } of cases) {

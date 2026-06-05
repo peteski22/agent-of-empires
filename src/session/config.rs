@@ -138,14 +138,20 @@ pub struct LoggingConfig {
         label = "Output (restart req.)",
         widget = "select",
         options = "file:file,stdout:stdout",
-        global_only
+        global_only,
+        advanced
     )]
     pub output: SinkKind,
 
     /// Log file location. Relative paths resolve under the app data dir;
     /// absolute paths are used verbatim. Restart aoe for changes.
     #[serde(default = "default_file_path")]
-    #[setting(label = "File path (restart req.)", widget = "text", global_only)]
+    #[setting(
+        label = "File path (restart req.)",
+        widget = "text",
+        global_only,
+        advanced
+    )]
     pub file_path: String,
 
     /// size rotates when the live file crosses the threshold; never disables
@@ -155,7 +161,8 @@ pub struct LoggingConfig {
         label = "Rotation (restart req.)",
         widget = "select",
         options = "size:size,never:never",
-        global_only
+        global_only,
+        advanced
     )]
     pub rotation: RotationKind,
 
@@ -165,7 +172,8 @@ pub struct LoggingConfig {
         label = "Max size MiB (restart req.)",
         widget = "number",
         min = 0,
-        global_only
+        global_only,
+        advanced
     )]
     pub max_size_mib: u64,
 
@@ -175,7 +183,8 @@ pub struct LoggingConfig {
         label = "Keep count (restart req.)",
         widget = "number",
         min = 0,
-        global_only
+        global_only,
+        advanced
     )]
     pub keep_count: u8,
 
@@ -188,7 +197,8 @@ pub struct LoggingConfig {
     #[setting(
         label = "Show span context (restart req.)",
         widget = "toggle",
-        global_only
+        global_only,
+        advanced
     )]
     pub show_spans: bool,
 }
@@ -768,14 +778,15 @@ pub struct SessionConfig {
     )]
     pub agent_acp_cmd: HashMap<String, String>,
 
-    /// Per-agent acp startup defaults. `model` is forwarded at spawn;
-    /// `effort` is applied through ACP config options when advertised.
+    /// Per-agent acp startup defaults as a JSON object
+    /// (`{"<agent>": {"model": "...", "effort": "..."}}`). `model` is forwarded
+    /// at spawn; `effort` is applied through ACP config options when advertised.
     ///
-    /// Map-of-struct (agent -> {model, effort}); not a flat settings widget,
-    /// so it is configured through the session wizard rather than the generic
-    /// settings panel. Skipped in the derived schema (#1692).
+    /// Map-of-struct, so it has no flat widget: it is edited as raw JSON through
+    /// the `acp-defaults` custom widget (a JSON textarea on the web, an inline
+    /// JSON field in the TUI) and saved like any other schema field.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    #[setting(skip)]
+    #[setting(label = "Structured View Defaults", widget = "custom:acp-defaults")]
     pub acp_defaults: HashMap<String, AcpAgentDefaults>,
 
     /// Require SHIFT on letter-based TUI hotkeys (e.g. SHIFT+N for New, SHIFT+D for Delete).
@@ -1498,7 +1509,7 @@ pub struct WorktreeConfig {
 
     /// Show the worktree branch name in the TUI session list.
     #[serde(default = "default_true")]
-    #[setting(skip)]
+    #[setting(label = "Show Branch in TUI", widget = "toggle", advanced)]
     pub show_branch_in_tui: bool,
 
     /// Also delete the git branch when deleting a worktree. Default: false
@@ -1605,7 +1616,8 @@ pub struct SandboxConfig {
         label = "Extra Volumes",
         widget = "list",
         validate = "volume_list",
-        web = "elevation:sandbox config affects host isolation"
+        web = "elevation:sandbox config affects host isolation",
+        advanced
     )]
     pub extra_volumes: Vec<String>,
 
@@ -1620,7 +1632,9 @@ pub struct SandboxConfig {
     #[setting(
         label = "Sandbox Environment",
         widget = "list",
-        web = "elevation:sandbox config affects host isolation"
+        validate = "env_list",
+        web = "elevation:sandbox config affects host isolation",
+        advanced
     )]
     pub environment: Vec<String>,
 
@@ -1638,7 +1652,8 @@ pub struct SandboxConfig {
     #[setting(
         label = "CPU Limit",
         widget = "optional_text",
-        web = "elevation:sandbox config affects host isolation"
+        web = "elevation:sandbox config affects host isolation",
+        advanced
     )]
     pub cpu_limit: Option<String>,
 
@@ -1648,7 +1663,8 @@ pub struct SandboxConfig {
         label = "Memory Limit",
         widget = "optional_text",
         validate = "memory_limit",
-        web = "elevation:sandbox config affects host isolation"
+        web = "elevation:sandbox config affects host isolation",
+        advanced
     )]
     pub memory_limit: Option<String>,
 
@@ -1661,7 +1677,9 @@ pub struct SandboxConfig {
     #[setting(
         label = "Port Mappings",
         widget = "list",
-        web = "elevation:sandbox config affects host isolation"
+        validate = "port_mapping_list",
+        web = "elevation:sandbox config affects host isolation",
+        advanced
     )]
     pub port_mappings: Vec<String>,
 
@@ -1680,7 +1698,8 @@ pub struct SandboxConfig {
     #[setting(
         label = "Volume Ignores",
         widget = "list",
-        web = "elevation:sandbox config affects host isolation"
+        web = "elevation:sandbox config affects host isolation",
+        advanced
     )]
     pub volume_ignores: Vec<String>,
 
@@ -1692,7 +1711,8 @@ pub struct SandboxConfig {
         label = "Volume Ignores Strategy",
         widget = "select",
         options = "anonymous:anonymous,named:named",
-        web = "elevation:sandbox config affects host isolation"
+        web = "elevation:sandbox config affects host isolation",
+        advanced
     )]
     pub volume_ignores_strategy: VolumeIgnoresStrategy,
 
@@ -1712,7 +1732,8 @@ pub struct SandboxConfig {
     #[setting(
         label = "SELinux Relabel",
         widget = "toggle",
-        web = "elevation:sandbox config affects host isolation"
+        web = "elevation:sandbox config affects host isolation",
+        advanced
     )]
     pub selinux_relabel: bool,
 
@@ -1722,7 +1743,8 @@ pub struct SandboxConfig {
     #[setting(
         label = "Custom Instruction",
         widget = "optional_text",
-        web = "elevation:sandbox config affects host isolation"
+        web = "elevation:sandbox config affects host isolation",
+        advanced
     )]
     pub custom_instruction: Option<String>,
 

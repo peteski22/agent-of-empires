@@ -42,19 +42,12 @@ vi.mock("../../lib/api", () => ({
   deleteProfile: vi.fn(() => Promise.resolve(true)),
 }));
 
-const SERVER_ABOUT = {
-  acp_show_tool_durations: true,
-  acp_queue_drain_mode: "combined" as const,
-  acp_max_concurrent_resumes: 4,
-};
-
 function renderView(tab: string) {
   return render(
     <SettingsView
       onClose={() => {}}
       tab={tab}
       onSelectTab={vi.fn()}
-      serverAbout={SERVER_ABOUT as never}
       onServerAboutRefresh={() => {}}
     />,
   );
@@ -77,5 +70,19 @@ describe("SettingsView schema load", () => {
     );
     expect(screen.queryByText("Failed to load settings schema.")).toBeNull();
     expect(vi.mocked(api.getSettingsSchema)).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a mixed tab's non-schema rows visible when the schema fails", async () => {
+    // The session tab mixes a non-schema row (the default-profile selector)
+    // with a SchemaSection. A schema-load failure must only blank the schema
+    // slot, not the whole tab (CodeRabbit #1987).
+    vi.mocked(api.getSettingsSchema).mockResolvedValue(null);
+    renderView("session");
+
+    await waitFor(() =>
+      expect(screen.getByText("Failed to load settings schema.")).toBeTruthy(),
+    );
+    // The non-schema selector is still there alongside the schema-slot error.
+    expect(screen.getByText("Default profile")).toBeTruthy();
   });
 });
