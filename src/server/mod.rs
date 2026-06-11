@@ -1393,6 +1393,8 @@ fn build_router(state: Arc<AppState>) -> Router {
             "/api/sessions/{id}/snooze",
             patch(api::update_session_snooze),
         )
+        .route("/api/sessions/{id}/stop", post(api::stop_session))
+        .route("/api/sessions/{id}/start", post(api::start_session))
         .route("/api/sessions/{id}/terminal", post(api::ensure_terminal))
         .route(
             "/api/sessions/{id}/container-terminal",
@@ -1435,6 +1437,11 @@ fn build_router(state: Arc<AppState>) -> Router {
         .route(
             "/api/app-state/web-tour-seen",
             post(api::mark_web_tour_seen),
+        )
+        .route("/api/app-state/dismiss-update", post(api::dismiss_update))
+        .route(
+            "/api/app-state/web-ui-state",
+            get(api::get_web_ui_state).patch(api::patch_web_ui_state),
         )
         .route(
             "/api/app-state/volume-ignores-globs-acknowledged",
